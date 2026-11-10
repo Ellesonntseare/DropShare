@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2f6b4f">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
+<title>DropShare</title>
+<style>
+  :root {
+    --bg: #eef2ee; --card: #fbfdfb; --ink: #17241c; --muted: #66756c;
+    --line: #cfd9d1; --moss: #2f6b4f; --moss-ink: #fff; --warn: #a63d2f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121a15; --card: #1a251e; --ink: #e6efe8; --muted: #8b9c91; --line: #2c3b32; --moss: #5fae88; --moss-ink: #0e1812; --warn: #e07d6e; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: max(16px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  }
+  main { max-width: 680px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 6px 0 16px; letter-spacing: -.01em; }
+  h2 { font-size: 1rem; margin: 30px 0 8px; color: var(--muted); font-weight: 600; }
+
+  #drop {
+    display: block; position: relative; border: 2px dashed var(--line); border-radius: 16px; background: var(--card);
+    padding: 36px 16px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  #drop:hover, #drop:focus-within { border-color: var(--moss); }
+  #drop.over { border-color: var(--moss); border-style: solid; background: color-mix(in srgb, var(--moss) 10%, var(--card)); }
+  #drop strong { display: block; font-size: 1.15rem; }
+  #drop span { color: var(--muted); font-size: .95rem; }
+  #drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+  #ups { margin-top: 12px; display: grid; gap: 10px; }
+  #ups:empty { display: none; }
+  .up { display: grid; gap: 4px; font-size: .9rem; }
+  .up span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .up.bad span { color: var(--warn); }
+  progress { width: 100%; height: 8px; accent-color: var(--moss); }
+
+  textarea {
+    display: block; width: 100%; min-height: 64px; margin-top: 12px; resize: vertical; padding: 12px; font: inherit; color: var(--ink);
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  }
+  textarea:focus { outline: 2px solid var(--moss); outline-offset: 1px; }
+  #status { min-height: 1.5em; margin-top: 4px; font-size: .9rem; color: var(--moss); }
+
+  .ghost {
+    border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 8px;
+    min-height: 40px; padding: 0 14px; font: inherit; font-size: .9rem; text-decoration: none;
+    display: inline-flex; align-items: center; cursor: pointer;
+  }
+  .ghost.main { background: var(--moss); border-color: var(--moss); color: var(--moss-ink); font-weight: 600; }
+  .ghost.del:hover, .ghost.del:focus-visible { color: var(--warn); border-color: var(--warn); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; }
+
+  .box { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .item { padding: 12px 14px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .item:first-child { border-top: 0; }
+  .info { flex: 1 1 200px; min-width: 0; display: flex; align-items: center; gap: 10px; }
+  .thumb { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; background: var(--line); flex: none; }
+  .txt { min-width: 0; }
+  .txt b { display: block; font-weight: 500; overflow-wrap: anywhere; }
+  .txt small { color: var(--muted); }
+  .clip { flex: 1 1 100%; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 7.5em; overflow: auto; font-size: .95rem; }
+  .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .empty { padding: 20px 14px; color: var(--muted); text-align: center; }
+
+  #chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; }
+  #chips:empty { display: none; }
+  .chip {
+    flex: none; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 999px;
+    min-height: 36px; padding: 0 14px; font: inherit; font-size: .9rem; cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: var(--moss); border-color: var(--moss); color: var(--moss-ink); }
+  #setup { margin-top: 28px; font-size: .9rem; color: var(--muted); }
+  #setup a { color: var(--moss); }
+  @media (max-width: 420px) { .acts { width: 100%; } .acts > * { flex: 1; justify-content: center; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>DropShare</h1>
+
+  <label id="drop">
+    <input type="file" id="file" multiple>
+    <strong>Drop, paste or tap to add files</strong>
+    <span>Photos, videos, documents, anything. They share the moment they are added.</span>
+  </label>
+  <div id="ups"></div>
+
+  <textarea id="text" enterkeyhint="send" placeholder="Paste text here (or press Ctrl+V anywhere). It shares instantly." aria-label="Paste text to share"></textarea>
+  <div id="status" role="status"></div>
+
+  <h2>History</h2>
+  <div id="chips"></div>
+  <div class="box" id="list"></div>
+
+  <p id="setup" hidden></p>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const drop = $('#drop'), input = $('#file'), listEl = $('#list'), ups = $('#ups');
+const textEl = $('#text'), chipsEl = $('#chips'), statusEl = $('#status');
+
+const size = b => b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(1) + ' KB'
+  : b < 1073741824 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1073741824).toFixed(2) + ' GB';
+const ago = ms => { const m = Math.floor(ms / 60000);
+  return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.floor(m / 60) + ' h ago' : Math.floor(m / 1440) + ' d ago'; };
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+let flashTimer;
+function flash(msg) { statusEl.textContent = msg; clearTimeout(flashTimer); flashTimer = setTimeout(() => statusEl.textContent = '', 2000); }
+
+/* copy works on plain http, where navigator.clipboard is unavailable */
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch {}
+  const t = document.createElement('textarea');
+  t.value = text; t.style.cssText = 'position:fixed;top:0;opacity:0';
+  document.body.append(t); t.focus(); t.select(); t.setSelectionRange(0, 1e9);
+  let ok = false; try { ok = document.execCommand('copy'); } catch {}
+  t.remove(); return ok;
+}
+
+/* ---------- files: upload starts the moment they are added (2 at a time) ---------- */
+const queue = []; let active = 0; let sharedPending = false;
+const stamp = () => new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+const named = f => /^(image|file|blob)\.\w+$/i.test(f.name)
+  ? new File([f], 'pasted-' + stamp() + f.name.slice(f.name.lastIndexOf('.')), { type: f.type }) : f;
+
+function enqueue(file) {
+  file = named(file);
+  const row = el('div', 'up'), label = el('span', '', file.name + ' (waiting)');
+  const bar = document.createElement('progress'); bar.max = 1; bar.value = 0;
+  row.append(label, bar); ups.append(row);
+  queue.push({ file, row, label, bar }); pump();
+}
+function pump() {
+  while (active < 2 && queue.length) { active++; send(queue.shift(), () => { active--; pump(); }); }
+}
+function send({ file, row, label, bar }, next) {
+  label.textContent = file.name;
+  const x = new XMLHttpRequest();
+  x.open('POST', '/upload?name=' + encodeURIComponent(file.name));
+  x.upload.onprogress = e => {
+    if (!e.lengthComputable) return;
+    bar.value = e.loaded / e.total;
+    label.textContent = file.name + ' ' + Math.round(bar.value * 100) + '%';
+  };
+  x.onloadend = () => {
+    const ok = x.status === 200;
+    if (!ok) { row.classList.add('bad'); label.textContent = file.name + ' failed to upload. Try again.'; }
+    setTimeout(() => row.remove(), ok ? 700 : 6000);
+    next(); refresh();
+    if (sharedPending && !active && !queue.length) { sharedPending = false; clearShared(); }
+  };
+  x.send(file);
+}
+
+input.addEventListener('change', () => { [...input.files].forEach(enqueue); input.value = ''; });
+
+function fromDrop(dt) {
+  const out = [];
+  for (const it of dt.items || []) {
+    if (it.kind !== 'file') continue;
+    const en = it.webkitGetAsEntry && it.webkitGetAsEntry();
+    if (en && !en.isFile) continue; // skip folders
+    const f = it.getAsFile(); if (f) out.push(f);
+  }
+  return out.length ? out : [...dt.files].filter(f => f.size > 0 || f.type);
+}
+
+let depth = 0;
+addEventListener('dragenter', e => { e.preventDefault(); depth++; drop.classList.add('over'); });
+addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; drop.classList.remove('over'); } });
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', e => {
+  e.preventDefault(); depth = 0; drop.classList.remove('over');
+  if (e.dataTransfer) fromDrop(e.dataTransfer).forEach(enqueue);
+});
+
+/* ---------- paste anywhere: files and images upload, text is shared, no button ---------- */
+async function shareText(text) {
+  if (!text.trim()) return;
+  try {
+    const r = await fetch('/clips', { method: 'POST', body: JSON.stringify({ text }) });
+    flash(r.ok ? 'Text shared' : 'Could not share text');
+  } catch { flash('Could not share text'); }
+  refresh();
+}
+addEventListener('paste', e => {
+  const cd = e.clipboardData; if (!cd) return;
+  if (cd.files && cd.files.length) { e.preventDefault(); [...cd.files].forEach(enqueue); return; }
+  const t = cd.getData('text');
+  if (t && t.trim()) { e.preventDefault(); shareText(t); }
+});
+// typed text: Enter sends, Shift+Enter adds a line
+textEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); shareText(textEl.value); textEl.value = ''; }
+});
+
+/* ---------- history (files and text together, newest first) ---------- */
+const PREVIEW = new Set(['jpg','jpeg','png','gif','webp','avif','bmp','mp4','m4v','webm','mov','mp3','wav','m4a','aac','ogg','opus','flac','pdf','txt']);
+const THUMB = new Set(['jpg','jpeg','png','gif','webp','avif','bmp']);
+let files = [], clips = [], filter = 'All';
+
+function render() {
+  const items = [...files.map(f => ({ ...f, kind: 'file' })), ...clips.map(c => ({ ...c, kind: 'text', cat: 'Text' }))]
+    .sort((a, b) => a.age - b.age);
+  const cats = ['All', ...new Set(items.map(i => i.cat))];
+  if (!cats.includes(filter)) filter = 'All';
+  chipsEl.replaceChildren(...(cats.length > 2 ? cats : []).map(c => {
+    const b = el('button', 'chip', c); b.setAttribute('aria-pressed', c === filter);
+    b.onclick = () => { filter = c; render(); }; return b;
+  }));
+  const shown = items.filter(i => filter === 'All' || i.cat === filter);
+  if (!shown.length) { listEl.replaceChildren(el('div', 'empty', 'Nothing shared yet.')); return; }
+  listEl.replaceChildren(...shown.map(i => i.kind === 'text' ? textRow(i) : fileRow(i)));
+}
+
+function textRow(c) {
+  const item = el('div', 'item'), acts = el('div', 'acts');
+  const copy = el('button', 'ghost main', 'Copy');
+  copy.onclick = async () => {
+    const ok = await copyText(c.text);
+    copy.textContent = ok ? 'Copied' : 'Press and hold the text to copy';
+    setTimeout(() => copy.textContent = 'Copy', 1800);
+  };
+  const del = el('button', 'ghost del', 'Delete');
+  del.onclick = async () => { await fetch('/clips/' + c.id, { method: 'DELETE' }); refresh(); };
+  acts.append(copy, del);
+  item.append(el('div', 'clip', c.text), el('small', '', 'Text · ' + ago(c.age)), acts);
+  return item;
+}
+
+function fileRow(f) {
+  const href = '/f/' + encodeURIComponent(f.cat) + '/' + encodeURIComponent(f.name);
+  const ext = f.name.slice(f.name.lastIndexOf('.') + 1).toLowerCase();
+  const item = el('div', 'item'), info = el('div', 'info'), txt = el('div', 'txt');
+  if (THUMB.has(ext) && f.size < 8e6) {
+    const img = el('img', 'thumb'); img.loading = 'lazy'; img.alt = ''; img.src = href + '?inline=1';
+    img.onerror = () => img.remove(); info.append(img);
+  }
+  txt.append(el('b', '', f.name), el('small', '', f.cat + ' · ' + size(f.size) + ' · ' + ago(f.age)));
+  info.append(txt);
+  const acts = el('div', 'acts');
+  if (PREVIEW.has(ext)) { const o = el('a', 'ghost', 'Open'); o.href = href + '?inline=1'; o.target = '_blank'; o.rel = 'noopener'; acts.append(o); }
+  const dl = el('a', 'ghost main', 'Download'); dl.href = href; dl.setAttribute('download', f.name);
+  const del = el('button', 'ghost del', 'Delete');
+  del.onclick = async () => { if (confirm('Delete ' + f.name + ' from the PC?')) { await fetch(href, { method: 'DELETE' }); refresh(); } };
+  acts.append(dl, del);
+  item.append(info, acts);
+  return item;
+}
+
+async function refresh() {
+  try {
+    [files, clips] = await Promise.all([fetch('/list').then(r => r.json()), fetch('/clips').then(r => r.json())]);
+  } catch { return; }
+  render();
+}
+
+/* ---------- Android "Share to DropShare" (installed web app over HTTPS) ---------- */
+const HTTPS_PORT = '%%HTTPS_PORT%%';
+
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+
+async function takeShared() {
+  if (!('caches' in window)) return;
+  const cache = await caches.open('dropshare-share');
+  for (const req of await cache.keys()) {
+    const res = await cache.match(req);
+    if (!res) continue;
+    if (req.url.endsWith('/shared/text')) {
+      shareText((await res.json()).text);
+      await cache.delete(req);
+    } else {
+      const blob = await res.blob();
+      const name = decodeURIComponent(res.headers.get('X-Name') || 'shared');
+      sharedPending = true;
+      enqueue(new File([blob], name, { type: blob.type }));
+    }
+  }
+  history.replaceState(null, '', '/');
+  if (!sharedPending) clearShared();
+}
+async function clearShared() {
+  try { const c = await caches.open('dropshare-share'); for (const k of await c.keys()) await c.delete(k); } catch {}
+}
+if (location.search.includes('shared=1')) takeShared();
+
+// one-time setup hint, only on the plain http page
+if (location.protocol === 'http:' && HTTPS_PORT) {
+  const p = $('#setup'), a = el('a', '', 'install the certificate'), b = el('a', '', 'https://' + location.hostname + ':' + HTTPS_PORT);
+  a.href = '/DropShare-CA.crt'; b.href = 'https://' + location.hostname + ':' + HTTPS_PORT;
+  p.hidden = false;
+  p.append('Share from your phone gallery: on the phone, ', a, ', then open ', b, ' and choose Install app.');
+}
+
+refresh();
+setInterval(refresh, 60000); // keeps "time ago" fresh
+new EventSource('/events').onmessage = refresh;
+</script>
+</body>
+</html>
